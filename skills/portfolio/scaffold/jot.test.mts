@@ -1,11 +1,16 @@
 import { test } from "node:test";
 import type { TestContext } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync, rmSync, readFileSync, writeFileSync, existsSync, readdirSync } from "node:fs";
+import { mkdtempSync, mkdirSync, rmSync, readFileSync, writeFileSync, existsSync, readdirSync, copyFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
+import { spawnSync } from "node:child_process";
+import process from "node:process";
 
 import { slugify, nextId, epicDir, jot } from "./jot.mts";
+
+const SCAFFOLD_DIR = dirname(fileURLToPath(import.meta.url));
 
 function makeRoot(t: TestContext): string {
   const tmp = mkdtempSync(join(tmpdir(), "jot-"));
@@ -53,6 +58,8 @@ test("jot creates an inbox idea", (t) => {
   assert.ok(text.includes("title: Try the new parser"));
   assert.ok(text.includes("One-liner."));
   assert.ok(out.includes("I04"));
+  assert.ok(out.startsWith("Created inbox/"));
+  assert.ok(!out.includes(root));
 });
 
 test("jot refuses duplicate file", (t) => {
@@ -61,6 +68,8 @@ test("jot refuses duplicate file", (t) => {
   const again = jot(root, ["Same title"]);
   assert.equal(again.code, 1);
   assert.ok(again.out.includes("already exists"));
+  assert.ok(again.out.startsWith("error: inbox/"));
+  assert.ok(!again.out.includes(root));
 });
 
 test("jot --epic files a task under the epic", (t) => {
@@ -76,6 +85,8 @@ test("jot --epic files a task under the epic", (t) => {
   assert.ok(text.includes("epic: E01"));
   assert.ok(!text.includes("story:"));
   assert.ok(out.includes("T008"));
+  assert.ok(out.startsWith("Created epics/2026-01-01-alpha/"));
+  assert.ok(!out.includes(root));
 });
 
 test("jot --epic --story records the story link", (t) => {
@@ -98,6 +109,8 @@ test("set-epic marker round trip", (t) => {
   const after = jot(root, ["--epic", "No marker now"]);
   assert.equal(after.code, 1);
   assert.ok(after.out.includes("no epic given"));
+  assert.ok(after.out.includes("no .current-epic set"));
+  assert.ok(!after.out.includes(root));
 });
 
 test("set-epic unknown id fails", (t) => {
@@ -127,4 +140,32 @@ test("no args prints usage", (t) => {
   const res = jot(root, []);
   assert.equal(res.code, 1);
   assert.ok(res.out.includes("usage:"));
+});
+
+function makeCliRoot(t: TestContext, buildViewsBody: string): string {
+  const tmp = mkdtempSync(join(tmpdir(), "jot-cli-"));
+  t.after(() => rmSync(tmp, { recursive: true, force: true }));
+  copyFileSync(join(SCAFFOLD_DIR, "jot.mts"), join(tmp, "jot.mts"));
+  writeFileSync(join(tmp, "build-views.mts"), buildViewsBody, "utf8");
+  mkdirSync(join(tmp, "inbox"), { recursive: true });
+  mkdirSync(join(tmp, "epics"), { recursive: true });
+  return tmp;
+}
+
+test("main aborts and prints nothing on regen failure", (t) => {
+  const root = makeCliRoot(t, "process.exit(3);\n");
+  const res = spawnSync(process.execPath, [join(root, "jot.mts"), "Some idea"], {
+    encoding: "utf8",
+  });
+  assert.equal(res.status, 3);
+  assert.ok(!res.stdout.includes("Created"));
+});
+
+test("main prints Created after successful regen", (t) => {
+  const root = makeCliRoot(t, "process.exit(0);\n");
+  const res = spawnSync(process.execPath, [join(root, "jot.mts"), "Some idea"], {
+    encoding: "utf8",
+  });
+  assert.equal(res.status, 0);
+  assert.ok(res.stdout.includes("Created inbox/"));
 });

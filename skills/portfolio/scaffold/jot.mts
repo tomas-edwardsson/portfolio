@@ -7,12 +7,17 @@
 // Node >= 22.18; node: stdlib only.
 
 import { readFileSync, writeFileSync, existsSync, readdirSync, rmSync, mkdirSync } from "node:fs";
-import { join, dirname } from "node:path";
+import { join, relative, sep } from "node:path";
 import { spawnSync } from "node:child_process";
 import process from "node:process";
 
 const USAGE = 'usage: node jot.mts [--epic [E##] [--story S##]] "Title" ["desc"]';
 const ID_WIDTHS: Record<string, number> = { E: 2, S: 2, T: 3, I: 2 };
+
+// Render a path for display: relative to root, forward slashes (Windows-safe).
+function rel(root: string, p: string): string {
+  return relative(root, p).replaceAll(sep, "/");
+}
 
 export function slugify(s: string): string {
   return s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
@@ -111,27 +116,29 @@ export function jot(root: string, argvIn: string[]): { out: string; code: number
     mkdirSync(join(root, "inbox"), { recursive: true });
     const id = nextId(root, "I", 2);
     const file = join(root, "inbox", `${today}-${slug}.md`);
-    if (existsSync(file)) return { out: `error: ${file} already exists`, code: 1 };
+    if (existsSync(file)) return { out: `error: ${rel(root, file)} already exists`, code: 1 };
     writeFileSync(file,
       `---\nid: ${id}\ntype: idea\ntitle: ${title}\nstatus: future\n` +
       `horizon: later\ncreated: ${today}\n---\n\n${desc}\n`, "utf8");
-    return { out: `Created ${file} (${id})`, code: 0 };
+    return { out: `Created ${rel(root, file)} (${id})`, code: 0 };
   }
 
   if (!epic) {
-    if (!existsSync(marker)) return { out: `error: no epic given and no ${marker} set`, code: 1 };
+    if (!existsSync(marker)) {
+      return { out: `error: no epic given and no ${rel(root, marker)} set`, code: 1 };
+    }
     epic = readFileSync(marker, "utf8").trim();
   }
   const dir = epicDir(root, epic);
   if (!dir) return { out: `error: epic ${epic} not found`, code: 1 };
   const id = nextId(root, "T", 3);
   const file = join(dir, `${today}-${slug}.md`);
-  if (existsSync(file)) return { out: `error: ${file} already exists`, code: 1 };
+  if (existsSync(file)) return { out: `error: ${rel(root, file)} already exists`, code: 1 };
   const storyLine = story ? `story: ${story}\n` : "";
   writeFileSync(file,
     `---\nid: ${id}\ntype: task\ntitle: ${title}\nstatus: future\n` +
     `created: ${today}\nupdated: ${today}\nepic: ${epic}\n${storyLine}---\n\n${desc}\n`, "utf8");
-  return { out: `Created ${file} (${id})`, code: 0 };
+  return { out: `Created ${rel(root, file)} (${id})`, code: 0 };
 }
 
 export function main(): void {
@@ -143,7 +150,10 @@ export function main(): void {
   }
   const created = out.startsWith("Created ");
   if (created) {
-    spawnSync(process.execPath, [join(root, "build-views.mts")], { stdio: "inherit" });
+    const regen = spawnSync(process.execPath, [join(root, "build-views.mts")], { stdio: "inherit" });
+    if (regen.error || regen.status !== 0) {
+      process.exit(regen.status ?? 1);
+    }
   }
   console.log(out);
 }
