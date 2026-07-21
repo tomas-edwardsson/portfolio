@@ -1138,11 +1138,17 @@ test("cli writes all four views with --root", (t) => {
   assert.ok(html.includes("TestProduct"));
 });
 
-test("importing the module runs nothing", () => {
-  // Guard regression: this test file imports build-views.mts at top level;
-  // if import ran main(), every test above would have exploded on missing
-  // epics/ in the cwd. Reaching here is the assertion.
-  assert.ok(true);
+test("importing the module as a side effect runs nothing", () => {
+  // Guard regression: if importing ran main(), it would print "Wrote …"
+  // and write BOARD.md next to the script.
+  const script = join(import.meta.dirname, "build-views.mts");
+  const res = spawnSync(process.execPath, ["-e",
+    'const{pathToFileURL}=require("node:url");' +
+    'import(pathToFileURL(process.argv[1]).href).catch(e=>{console.error(e);process.exit(1)});',
+    script], { encoding: "utf8" });
+  assert.equal(res.status, 0, res.stderr);
+  assert.equal(res.stdout, "");
+  assert.ok(!existsSync(join(import.meta.dirname, "BOARD.md")));
 });
 ```
 
