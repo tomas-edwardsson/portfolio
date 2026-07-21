@@ -63,3 +63,92 @@ export function firstBodyLine(body: string): string {
   }
   return parts.join(" ");
 }
+
+export function portfolioName(root: string): string {
+  const p = join(root, ".title");
+  if (!existsSync(p)) return "";
+  return readFileSync(p, "utf8").trim();
+}
+
+function mdFilesSorted(dir: string): string[] {
+  if (!existsSync(dir)) return [];
+  return readdirSync(dir).filter((n) => n.endsWith(".md")).sort().map((n) => join(dir, n));
+}
+
+export function loadItems(root: string): [Items, string[]] {
+  const items: Items = new Map();
+  const warnings: string[] = [];
+
+  const add = (path: string): void => {
+    const [fm, body] = parseFrontmatter(readFileSync(path, "utf8"));
+    if (Object.keys(fm).length === 0) {
+      // No frontmatter at all — a plain reference doc, not an item.
+      return;
+    }
+    const iid = fm["id"];
+    if (!iid) { warnings.push(`${path}: missing id`); return; }
+    if (items.has(iid)) {
+      warnings.push(`${path}: duplicate id ${iid} (also in ${items.get(iid)!.file})`);
+      return;
+    }
+    items.set(iid, {
+      id: iid,
+      type: fm["type"] ?? "",
+      title: fm["title"] ?? "",
+      status: fm["status"] ?? "",
+      horizon: fm["horizon"] ?? "",
+      blockedBy: parseIdList(fm["blocked-by"] ?? ""),
+      brief: fm["brief"] ?? "",
+      artifact: fm["artifact"] ?? "",
+      epic: fm["epic"] ?? "",
+      summary: firstBodyLine(body),
+      file: path,
+      updated: fm["updated"] ?? "",
+      completed: fm["completed"] ?? "",
+      created: fm["created"] ?? "",
+      story: fm["story"] ?? "",
+    });
+  };
+
+  const epicsDir = join(root, "epics");
+  if (existsSync(epicsDir)) {
+    const subdirs = readdirSync(epicsDir, { withFileTypes: true })
+      .filter((d) => d.isDirectory()).map((d) => d.name).sort();
+    for (const sub of subdirs) for (const f of mdFilesSorted(join(epicsDir, sub))) add(f);
+  }
+  for (const f of mdFilesSorted(join(root, "inbox"))) add(f);
+  return [items, warnings];
+}
+
+const VALID_STATUSES = new Set(["future", "active", "blocked", "done", "dropped", "parked", "promoted"]);
+
+export function validate(items: Items): string[] {
+  const warnings: string[] = [];
+  const sorted = [...items.values()].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  for (const it of sorted) {
+    for (const dep of it.blockedBy) {
+      if (!items.has(dep)) warnings.push(`${it.id}: unknown blocked-by id ${dep}`);
+    }
+    if (it.status && !VALID_STATUSES.has(it.status)) {
+      warnings.push(`${it.id}: unknown status '${it.status}'`);
+    }
+    if (it.type === "idea" && !["", "later", "next"].includes(it.horizon)) {
+      warnings.push(`${it.id}: idea horizon '${it.horizon}' not supported ` +
+        "(use later or next; promote the idea instead)");
+    }
+  }
+  const state = new Map<string, number>(); // 1 visiting, 2 done
+  const visit = (iid: string, stack: string[]): void => {
+    state.set(iid, 1);
+    for (const dep of items.get(iid)!.blockedBy) {
+      if (!items.has(dep)) continue;
+      if (state.get(dep) === 1) warnings.push("dependency cycle: " + [...stack, dep].join(" -> "));
+      else if (!state.has(dep)) visit(dep, [...stack, dep]);
+    }
+    state.set(iid, 2);
+  };
+  for (const iid of [...items.keys()].sort()) {
+    if (!state.has(iid)) visit(iid, [iid]);
+  }
+  return warnings;
+}
