@@ -12,9 +12,10 @@ generated from them:
 - **BRAGLOG.md** — dated shipped history, newest first
 - **portfolio.html** — all three as tabs in one self-contained styled page
 
-The tracker lives at `<workspace-root>/portfolio/`, a **sibling of your repo
-checkout(s)** — it gives a higher-level view of the whole product (app,
-pipelines, infra) than any single repo can.
+The tracker lives in a `portfolio/` directory — normally at the **root of
+your repo**, committed alongside the code. Multi-repo or worktree-heavy
+setups can instead keep it one level up, as a sibling of the checkouts,
+for a product-level view (app, pipelines, infra) that no single repo gives.
 
 ## Pairs with Superpowers
 
@@ -47,9 +48,9 @@ automatically after every portfolio edit.
 
 ## Quick start
 
-Ask Claude to "set up a portfolio in this workspace" (the skill's **init**
-copies `skills/portfolio/scaffold/` to `<workspace-root>/portfolio/`), or do
-it by hand:
+Ask Claude to "set up a portfolio in this repo" (the skill's **init** copies
+`skills/portfolio/scaffold/` to `portfolio/` at your repo root), or do it by
+hand:
 
 ```bash
 mkdir -p portfolio && cp -r skills/portfolio/scaffold/. portfolio/

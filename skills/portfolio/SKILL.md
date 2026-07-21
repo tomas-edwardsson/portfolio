@@ -5,10 +5,12 @@ description: Use when the user wants to track, jot, or plan product work (ideas,
 
 # Portfolio skill
 
-A markdown work tracker — Epic → Story → Task plus an idea inbox — that lives
-at `<workspace-root>/portfolio/`: a sibling of your repo checkout(s), above
-any single repo (in worktree sessions: one level up, `../portfolio` — verify
-with `ls`). All commands below run from the workspace root. Full conventions:
+A markdown work tracker — Epic → Story → Task plus an idea inbox — living in
+a `portfolio/` directory. By default that is the **root of the git checkout**,
+committed with the code. Multi-repo or worktree-based workspaces may instead
+keep it one level up, as a sibling of the checkout(s) — locate it before
+assuming (`ls portfolio ../portfolio`). All commands below run from the
+directory that contains `portfolio/`. Full conventions:
 `portfolio/README.md`.
 
 ## Relationship to Superpowers
@@ -25,9 +27,10 @@ The portfolio is the index of **what**; Superpowers docs are the **how**.
 
 ## Operations
 
-**init** — no `portfolio/` exists yet in this workspace. From the workspace
-root, copy the scaffold from this skill's directory (dotfiles included), then
-verify:
+**init** — no `portfolio/` exists yet. Location: the repo root by default;
+the workspace root (parent of the checkouts) only if the user tracks several
+repos/worktrees as one product. From that directory, copy the scaffold from
+this skill's directory (dotfiles included), then verify:
 
 ```bash
 mkdir -p portfolio

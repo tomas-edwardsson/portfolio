@@ -1,8 +1,9 @@
 # Portfolio
 
-A markdown-based tracker for all work on a product — every repo, pipeline, and
-infra concern — sitting above any single repo. Plain files, no service, fully
-greppable; four read-only views are generated from frontmatter.
+A markdown-based tracker for all work on a product — features, pipelines,
+infra. Lives in `portfolio/` at the repo root (or one level up, spanning
+multiple repos). Plain files, no service, fully greppable; four read-only
+views are generated from frontmatter.
 
 ## Hierarchy
 

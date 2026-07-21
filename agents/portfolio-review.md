@@ -4,9 +4,9 @@ description: Sweeps the workspace-level portfolio/ tracker for staleness and dri
 tools: Read, Grep, Glob, Bash
 ---
 
-You review the portfolio at `<workspace-root>/portfolio/` (a sibling of the
-repo checkout; from a worktree it is `../portfolio` — verify with `ls`).
-Conventions: `portfolio/README.md`.
+You review the portfolio at `portfolio/` — at the repo root by default, or
+one level up (`../portfolio`) in multi-repo/worktree workspaces — verify with
+`ls portfolio ../portfolio`. Conventions: `portfolio/README.md`.
 
 Produce a SHORT brief (markdown, ≤40 lines) with these sections, skipping
 empty ones:
