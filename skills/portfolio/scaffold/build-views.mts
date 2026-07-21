@@ -352,3 +352,429 @@ export function renderBraglog(items: Items, today: string): string {
   out.push("");
   return out.join("\n") + "\n";
 }
+
+
+const HTML_CSS = `
+:root{
+  --court:#14110D;--floor:#1E1913;--floor2:#241E16;--line:#31291F;
+  --chalk:#EFE7DA;--dust:#A69B8C;--faint:#928873;
+  --orange:#FF6A1A;--orange-dim:#B34A12;
+  --st-future:#8FA8C4;--st-active:#64B98C;--st-blocked:#E05C4B;--st-done:#9C9284;
+  /* Low-chroma per-epic "taped-floor" tints — group without competing with orange */
+  --e-0:#C98A3C;--e-1:#6E96B0;--e-2:#8CA67A;--e-3:#B07C86;--e-4:#9A8CB5;--e-5:#C0A15A;
+  --mono:ui-monospace,'Cascadia Code','SF Mono',Menlo,Consolas,monospace;
+  --disp:'Archivo Narrow','Arial Narrow','Roboto Condensed',system-ui,sans-serif;
+}
+*{box-sizing:border-box}
+body{background:var(--court);color:var(--chalk);margin:0;line-height:1.5;
+  font-family:system-ui,'Segoe UI',Roboto,'Helvetica Neue',sans-serif}
+.wrap{max-width:940px;margin:0 auto;padding:0 24px 80px}
+a{color:var(--orange);text-decoration:none}
+a:hover,a:focus-visible{text-decoration:underline}
+:focus-visible{outline:2px solid var(--orange);outline-offset:2px}
+header{padding:48px 0 28px;border-bottom:3px solid var(--orange);
+  display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:16px}
+.eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.22em;
+  color:var(--orange);text-transform:uppercase}
+h1{font-family:var(--disp);font-weight:900;text-transform:uppercase;
+  font-size:clamp(34px,6vw,52px);line-height:.95;margin:10px 0 0}
+.stamp{font-family:var(--mono);font-size:12px;color:var(--faint);text-align:right}
+.boxscore{display:flex;flex-wrap:wrap;margin:26px 0 0;border:1px solid var(--line);background:var(--floor)}
+.bs{flex:1 1 110px;padding:12px 16px;border-right:1px solid var(--line)}
+.bs:last-child{border-right:0}
+.bs b{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:24px;
+  font-weight:700;display:block;color:var(--chalk)}
+.bs b.o{color:var(--orange)}
+.bs span{font-family:var(--mono);font-size:11px;letter-spacing:.16em;
+  text-transform:uppercase;color:var(--dust)}
+h2{font-family:var(--disp);font-weight:900;text-transform:uppercase;
+  font-size:clamp(22px,3vw,28px);margin:56px 0 18px;display:flex;align-items:baseline;gap:12px}
+h2::before{content:'';width:24px;height:11px;background:var(--orange);flex:none}
+h3.group{font-family:var(--mono);font-size:12px;letter-spacing:.2em;text-transform:uppercase;
+  color:var(--dust);margin:28px 0 10px;border-bottom:1px solid var(--line);padding-bottom:6px}
+.epic{background:var(--floor);border:1px solid var(--line);margin-bottom:14px}
+.epic-head{display:flex;flex-wrap:wrap;align-items:center;gap:10px;
+  padding:12px 16px;border-bottom:1px solid var(--line);background:var(--floor2)}
+.epic-head .t{font-family:var(--disp);font-weight:700;text-transform:uppercase;
+  letter-spacing:.04em;font-size:16px}
+.epic-sum{padding:10px 16px 0;color:var(--dust);font-size:13.5px;max-width:75ch}
+.rows{list-style:none;margin:0;padding:8px 8px}
+.rows li{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px;padding:6px 8px;font-size:14px}
+.rows li+li{border-top:1px solid #241E1655}
+.rows .t{color:var(--chalk)}
+.rows .ships{flex-basis:100%;font-size:12px;color:var(--faint);padding-left:46px}
+.flat{list-style:none;margin:0;padding:0}
+.flat li{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px;
+  background:var(--floor);border:1px solid var(--line);padding:10px 14px;margin-bottom:8px;font-size:14px}
+.flat .sum{color:var(--faint);font-size:12.5px;flex-basis:100%;padding-left:46px}
+.chip{font-family:var(--mono);font-weight:700;font-size:11.5px;padding:1px 7px;
+  border-radius:3px;background:#000;border:1px solid var(--line);letter-spacing:.05em;white-space:nowrap}
+.chip.e{color:var(--orange);border-color:var(--orange-dim)}
+.chip.s{color:var(--st-future);border-color:#3c4c5e;background:#141b22}
+.chip.t{color:var(--chalk);border-color:var(--faint);background:var(--floor2)}
+.chip.i{color:#D9B36A;border-color:#5e4c2c}
+.pill{font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;
+  padding:1px 8px;border-radius:20px;border:1px solid;white-space:nowrap}
+.pill.future{color:var(--st-future);border-color:var(--st-future)}
+.pill.active{color:var(--st-active);border-color:var(--st-active)}
+.pill.blocked{color:var(--st-blocked);border-color:var(--st-blocked)}
+.pill.done,.pill.dropped{color:var(--st-done);border-color:var(--st-done)}
+.blk{font-family:var(--mono);font-size:11.5px;color:var(--st-blocked);white-space:nowrap}
+.mark{font-size:13px}
+.none{color:var(--dust);font-size:14px;font-style:italic}
+footer{margin-top:64px;border-top:1px solid var(--line);padding-top:16px;
+  font-family:var(--mono);font-size:11.5px;color:var(--faint)}
+@media (max-width:560px){.rows .ships,.flat .sum{padding-left:0}}
+.tabs{display:flex;gap:4px;margin:26px 0 0;border-bottom:1px solid var(--line)}
+.tabs a{font-family:var(--disp);font-weight:700;text-transform:uppercase;
+  letter-spacing:.06em;font-size:14px;color:var(--dust);padding:10px 16px;
+  border:1px solid transparent;border-bottom:none;border-radius:4px 4px 0 0}
+.tabs a.active{color:var(--court);background:var(--orange);border-color:var(--orange)}
+.tab{padding-top:8px}
+.tab[hidden]{display:none}
+.lanes{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:18px}
+.lane{background:var(--floor);border:1px solid var(--line);min-width:0}
+.lane h3{font-family:var(--mono);font-size:12px;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--chalk);margin:0;padding:10px 12px;
+  border-bottom:1px solid var(--line);background:var(--floor2)}
+.lane ul{list-style:none;margin:0;padding:8px}
+.card{position:relative;background:var(--floor);border:1px solid var(--line);
+  border-left:3px solid var(--ea,var(--line));border-radius:5px;
+  padding:10px 12px 10px 13px;margin-bottom:10px}
+.card.blocked{border-left-color:var(--st-blocked)}
+.card .t{display:block;font-family:var(--disp);font-weight:700;font-size:15px;
+  line-height:1.25;letter-spacing:.01em;color:var(--chalk);margin:0 0 6px}
+.card .meta{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+.card .ep-tag{font-family:var(--mono);font-size:11px;font-weight:700;
+  padding:1px 6px;border-radius:3px;color:var(--ea,var(--dust));
+  border:1px solid var(--ea,var(--line));opacity:.9;background:transparent}
+.card .blk{display:inline-flex;align-items:center;gap:4px;margin-top:6px}
+.card .tick{display:block;width:22px;height:2px;background:var(--orange);margin-top:6px}
+.card.shipped{border-color:var(--orange-dim)}
+.card.shipped .d{font-family:var(--mono);font-size:12px;color:var(--dust)}
+@media (prefers-reduced-motion:no-preference){
+  .card{transition:border-color .12s ease}
+}
+.card:hover{border-color:var(--dust)}
+.board-wrap{display:flex;gap:18px;align-items:flex-start;margin-top:18px}
+.rail{flex:0 0 214px;border:1px solid var(--line);background:var(--floor);
+  border-radius:6px;overflow:hidden}
+.rail a{display:flex;align-items:center;gap:9px;padding:10px 12px;color:var(--chalk);
+  font-size:13px;border-left:3px solid transparent}
+.rail a+a{border-top:1px solid var(--line)}
+.rail .dot{width:9px;height:9px;border-radius:50%;background:var(--ea,var(--dust));flex:none}
+.rail .rl{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rail .rl .chip{margin-right:5px}
+.rail .n{font-family:var(--mono);font-size:11px;color:var(--dust);
+  font-variant-numeric:tabular-nums}
+.rail a.active{background:var(--floor2);border-left-color:var(--ea,var(--orange));font-weight:600}
+.rail a:hover{background:var(--floor2)}
+.panes{flex:1;min-width:0}
+.pane-head{display:flex;align-items:center;gap:10px;margin:0 0 6px;padding-bottom:8px;
+  font-family:var(--disp);font-weight:800;text-transform:uppercase;font-size:18px;
+  letter-spacing:.02em;border-bottom:2px solid var(--ea,var(--orange))}
+.epic-pane .epic-sum{margin:6px 0 14px;padding:0;color:var(--dust);font-size:13.5px;max-width:70ch}
+.lanes3{grid-template-columns:repeat(3,1fr)}
+.pane-foot{margin-top:14px;font-family:var(--mono);font-size:12px;color:var(--dust)}
+@media (max-width:720px){.board-wrap{flex-direction:column}
+  .rail{flex:none;width:100%}.lanes3{grid-template-columns:1fr}}
+details.epic-acc{background:var(--floor);border:1px solid var(--line);margin-bottom:10px}
+details.epic-acc summary{cursor:pointer;padding:12px 16px;font-family:var(--disp);
+  font-weight:700;text-transform:uppercase;letter-spacing:.04em;font-size:15px;
+  list-style:none;display:flex;flex-wrap:wrap;align-items:center;gap:10px}
+details.epic-acc summary::-webkit-details-marker{display:none}
+details.epic-acc[open] summary{border-bottom:1px solid var(--line);background:var(--floor2)}
+.count{font-family:var(--mono);font-size:12px;color:var(--dust);font-weight:400}
+.brag h3{display:flex;align-items:baseline;gap:10px;font-family:var(--disp);
+  font-weight:900;text-transform:uppercase;font-size:20px;margin:34px 0 12px;color:var(--orange)}
+.brag ul{list-style:none;position:relative;margin:0 0 8px 8px;padding:0;
+  border-left:2px solid var(--line)}
+.brag li{position:relative;display:grid;grid-template-columns:92px 1fr;
+  align-items:baseline;gap:14px;padding:9px 0 9px 22px;border-bottom:1px solid #241E1655}
+.brag li::before{content:'';position:absolute;left:-6px;top:15px;width:9px;height:9px;
+  border-radius:50%;background:var(--ea,var(--dust));border:2px solid var(--court)}
+.brag .d{font-family:var(--mono);font-size:12px;color:var(--dust);
+  font-variant-numeric:tabular-nums}
+.brag .c{min-width:0}
+.brag .t{font-size:14px;color:var(--chalk)}
+.brag .ep-name{font-family:var(--mono);font-size:11px;margin-left:8px;
+  color:var(--ea,var(--dust));opacity:.9;white-space:nowrap}
+.brag .tick{display:inline-block;width:22px;height:2px;background:var(--orange);
+  vertical-align:middle;margin-left:8px}
+.brag li.epic-done{padding:14px 0 14px 22px;border-bottom:1px solid var(--line)}
+.brag li.epic-done .t{font-family:var(--disp);font-weight:900;text-transform:uppercase;
+  font-size:16px;letter-spacing:.03em}
+.brag li.epic-done::before{width:13px;height:13px;left:-8px;top:17px;
+  background:var(--orange);box-shadow:0 0 0 3px rgba(255,106,26,.18)}
+@media (max-width:820px){.lanes{grid-template-columns:1fr;}}
+@media (max-width:560px){.brag li{grid-template-columns:1fr;gap:2px}}
+`;
+
+const HTML_SCRIPT = "<script>(function(){var t=['board','roadmap','braglog'];function all(q){return document.querySelectorAll(q);}function show(hash){var p=(hash||'board').split('/');var tab=p[0];if(t.indexOf(tab)<0)tab='board';t.forEach(function(x){document.getElementById(x).hidden=(x!==tab);var a=document.querySelector('[data-tab=\"'+x+'\"]');if(a){a.classList.toggle('active',x===tab);a.setAttribute('aria-selected',x===tab);}});if(tab==='board'){var ep=p[1]||'all';var ok=false;all('[data-epic]').forEach(function(n){var on=n.getAttribute('data-epic')===ep;n.hidden=!on;if(on)ok=true;});if(!ok){ep='all';all('[data-epic]').forEach(function(n){n.hidden=n.getAttribute('data-epic')!=='all';});}all('[data-epic-nav]').forEach(function(l){var on=l.getAttribute('data-epic-nav')===ep;l.classList.toggle('active',on);if(on)l.setAttribute('aria-current','true');else l.removeAttribute('aria-current');});}}function h(){show((location.hash||'#board').slice(1));}window.addEventListener('hashchange',h);h();})();</script>";
+
+function h(text: string): string {
+  return text.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;").replaceAll("'", "&#x27;");
+}
+
+function chip(iid: string): string {
+  const cls = ({ E: "e", S: "s", T: "t", I: "i" } as Record<string, string>)[iid[0]] ?? "t";
+  return `<span class="chip ${cls}">${h(iid)}</span>`;
+}
+
+function pill(status: string): string {
+  return status ? `<span class="pill ${h(status)}">${h(status)}</span>` : "";
+}
+
+function marksHtml(item: Item): string {
+  let out = "";
+  if (item.brief) {
+    let href = item.brief;
+    if (href.startsWith("portfolio/")) href = href.slice("portfolio/".length);
+    out += ` <a class="mark" href="${h(href)}" title="brief">📄</a>`;
+  }
+  if (item.artifact) out += ` <a class="mark" href="${h(item.artifact)}" title="artifact">🔗</a>`;
+  return out;
+}
+
+function blockedHtml(item: Item, items: Items): string {
+  const pend = pendingBlockers(item, items);
+  if (!pend.length) return "";
+  return `<span class="blk">⛔ after ${h(pend.join(", "))}</span>`;
+}
+
+function shipsHtml(item: Item, items: Items): string {
+  const pend = pendingBlockers(item, items);
+  if (!pend.length) return "";
+  const parts = pend.map((d) => `${d} (${items.get(d)!.title})`).join(", ");
+  return `<div class="ships">ships after: ${h(parts)}</div>`;
+}
+
+function storyRow(s: Item, items: Items): string {
+  return `<li>${chip(s.id)} <span class="t">${h(s.title)}</span> ` +
+    `${pill(s.status)}${marksHtml(s)} ${blockedHtml(s, items)}${shipsHtml(s, items)}</li>`;
+}
+
+function flatRow(item: Item, withSummary = true): string {
+  const summary = withSummary && item.summary ? `<div class="sum">${h(item.summary)}</div>` : "";
+  const idea = item.type === "idea" ? " 💡" : "";
+  return `<li>${chip(item.id)} <span class="t">${h(item.title)}</span>` +
+    `${idea}${marksHtml(item)}${summary}</li>`;
+}
+
+function epicAccent(epicId: string): string {
+  const n = parseInt(epicId.slice(1), 10);
+  return `var(--e-${Number.isNaN(n) ? 0 : ((n % 6) + 6) % 6})`;
+}
+
+function boardCard(c: Item, items: Items, showEpic = true): string {
+  const epic = itemEpic(c, items);
+  const ea = epic ? epicAccent(epic.id) : "var(--line)";
+  const ep = epic && showEpic
+    ? `<span class="ep-tag" title="${h(epic.title)}">${h(epic.id)}</span>` : "";
+  const blockedCls = c.status === "blocked" || pendingBlockers(c, items).length ? " blocked" : "";
+  return `<li><div class="card${blockedCls}" style="--ea:${ea}">` +
+    `<span class="t">${h(c.title)}</span>` +
+    `<span class="meta">${chip(c.id)}${ep}${marksHtml(c)}</span>` +
+    `${blockedHtml(c, items)}</div></li>`;
+}
+
+function epicPane(e: Item, items: Items, cards: Item[]): string {
+  const ea = epicAccent(e.id);
+  const mine = cards.filter((c) => c.epic === e.id);
+  const lanes: string[] = [];
+  for (const [lane, label] of EPIC_LANES) {
+    const rows = mine.filter((c) => boardLane(c, items) === lane)
+      .map((c) => boardCard(c, items, false)).join("");
+    const body = rows ? `<ul>${rows}</ul>` : '<p class="none">(none)</p>';
+    lanes.push(`<div class="lane"><h3>${label}</h3>${body}</div>`);
+  }
+  const shippedN = mine.filter((c) => c.status === "done").length;
+  const summ = e.summary ? `<p class="epic-sum">${h(e.summary)}</p>` : "";
+  const foot = shippedN ? `<p class="pane-foot">${shippedN} shipped → Braglog</p>` : "";
+  return `<div class="epic-pane" data-epic="${h(e.id)}" hidden ` +
+    `style="--ea:${ea}"><div class="pane-head">${chip(e.id)}` +
+    `<span class="pt">${h(e.title)}</span></div>${summ}` +
+    `<div class="lanes lanes3">${lanes.join("")}</div>${foot}</div>`;
+}
+
+function shippedCard(e: Item, hot = false): string {
+  const ea = epicAccent(e.id);
+  const tick = hot ? '<span class="tick"></span>' : "";
+  return `<li><div class="card shipped" style="--ea:${ea}">` +
+    `<span class="t">${h(e.title)}</span>${tick}` +
+    `<span class="meta">${chip(e.id)}` +
+    `<span class="d">${h(shipDate(e))}</span></span></div></li>`;
+}
+
+function roadmapAcc(e: Item, items: Items, withSummary = false): string {
+  const openStories = storiesOf(e.id, items).filter((s) => !DONE_STATES.has(s.status));
+  const count = `${openStories.length} stor${openStories.length === 1 ? "y" : "ies"}`;
+  const rows = openStories.map((s) => storyRow(s, items)).join("");
+  const body = rows ? `<ul class="rows">${rows}</ul>` : "";
+  const summary = withSummary && e.summary ? `<p class="epic-sum">${h(e.summary)}</p>` : "";
+  return `<details class="epic-acc"><summary>${chip(e.id)}` +
+    `<span>${h(e.title)}</span>${marksHtml(e)}` +
+    `<span class="count">${count}</span>${blockedHtml(e, items)}` +
+    `</summary>${summary}${body}</details>`;
+}
+
+export function renderHtml(items: Items, today: string, name = ""): string {
+  const future = epicsOf(items).filter((e) => e.status === "future");
+  const parked = epicsOf(items).filter((e) => e.status === "parked");
+  const ideas = [...items.values()]
+    .filter((x) => x.type === "idea" && x.status === "future").sort(byId);
+  const nextIdeas = ideas.filter((i) => i.horizon === "next");
+  const laterIdeas = ideas.filter((i) => i.horizon !== "next");
+  const all = [...items.values()];
+  const nStories = all.filter((x) => x.type === "story").length;
+  const nTasks = all.filter((x) => x.type === "task").length;
+  const nActive = all.filter((x) => x.type === "epic" && x.status === "active").length;
+  const nShipped = all.filter((x) => x.type === "epic" && x.status === "done").length;
+
+  const cards = all.filter((x) => x.type === "story" || x.type === "task").sort(byId);
+
+  const out: string[] = [];
+  const eyebrow = name ? `${h(name)} · work tracking · generated` : "work tracking · generated";
+  out.push(`<header><div><div class="eyebrow">${eyebrow}</div>` +
+    '<h1>Portfolio</h1></div>' +
+    `<div class="stamp">build-views.mts<br>${h(today)}</div></header>`);
+  out.push('<div class="boxscore">' +
+    `<div class="bs"><b class="o">${nActive}</b><span>Epics active</span></div>` +
+    `<div class="bs"><b>${nStories}</b><span>Stories</span></div>` +
+    `<div class="bs"><b>${nTasks}</b><span>Tasks</span></div>` +
+    `<div class="bs"><b>${ideas.length}</b><span>Ideas</span></div>` +
+    `<div class="bs"><b class="o">${nShipped}</b><span>Epics shipped</span></div>` +
+    "</div>");
+
+  out.push('<nav class="tabs" role="tablist" aria-label="Portfolio views">' +
+    '<a href="#board" data-tab="board" id="tab-board" role="tab" ' +
+    'aria-controls="board" aria-selected="true">Board</a>' +
+    '<a href="#roadmap" data-tab="roadmap" id="tab-roadmap" role="tab" ' +
+    'aria-controls="roadmap" aria-selected="false">Roadmap</a>' +
+    '<a href="#braglog" data-tab="braglog" id="tab-braglog" role="tab" ' +
+    'aria-controls="braglog" aria-selected="false">Braglog</a></nav>');
+
+  const openCount = (eid: string): number =>
+    cards.filter((c) => c.epic === eid && boardLane(c, items) !== null).length;
+
+  // Only epics with open work appear in the rail.
+  const boardEpics = epicsOf(items)
+    .filter((e) => (e.status === "active" || e.status === "future") && openCount(e.id) > 0)
+    .sort((a, b) => {
+      const ka = (a.status === "active" ? 0 : 1), kb = (b.status === "active" ? 0 : 1);
+      if (ka !== kb) return ka - kb;
+      return byId(a, b);
+    });
+
+  const allLanes: string[] = [];
+  for (const [lane, heading] of BOARD_LANES) {
+    const rows = cards.filter((c) => boardLane(c, items) === lane)
+      .map((c) => boardCard(c, items)).join("");
+    const body = rows ? `<ul>${rows}</ul>` : '<p class="none">(none)</p>';
+    allLanes.push(`<div class="lane"><h3>${heading}</h3>${body}</div>`);
+  }
+  const shipped = epicsOf(items)
+    .filter((e) => e.status === "done" && withinDays(shipDate(e), today, 30));
+  shipped.sort((a, b) => (shipDate(a) > shipDate(b) ? -1 : shipDate(a) < shipDate(b) ? 1 : 0));
+  const srows = shipped.map((e, i) => shippedCard(e, i === 0)).join("");
+  const sbody = shipped.length ? `<ul>${srows}</ul>` : '<p class="none">(none)</p>';
+  allLanes.push(`<div class="lane"><h3>🏆 Shipped · 30d</h3>${sbody}</div>`);
+
+  const rail: string[] = ['<nav class="rail" aria-label="Epics">',
+    '<a href="#board" data-epic-nav="all" class="active" ' +
+    'style="--ea:var(--orange)"><span class="dot"></span>' +
+    '<span class="rl">All work</span></a>'];
+  for (const e of boardEpics) {
+    rail.push(`<a href="#board/${h(e.id)}" data-epic-nav="${h(e.id)}" ` +
+      `style="--ea:${epicAccent(e.id)}"><span class="dot"></span>` +
+      `<span class="rl">${chip(e.id)}${h(e.title)}</span>` +
+      `<span class="n">${openCount(e.id)}</span></a>`);
+  }
+  rail.push("</nav>");
+
+  const panes = [`<div class="epic-pane" data-epic="all"><div class="lanes">` +
+    `${allLanes.join("")}</div></div>`,
+    ...boardEpics.map((e) => epicPane(e, items, cards))];
+
+  out.push('<section class="tab" id="board" role="tabpanel" ' +
+    'aria-labelledby="tab-board"><div class="board-wrap">' +
+    `${rail.join("")}<div class="panes">${panes.join("")}</div>` +
+    "</div></section>");
+
+  const r: string[] = ['<section class="tab" id="roadmap" role="tabpanel" ' +
+    'aria-labelledby="tab-roadmap" hidden>'];
+  r.push('<h3 class="group">⏭️ Next</h3>');
+  const nextEpics = future.filter((e) => epicHorizon(e) === "next");
+  r.push(...nextEpics.map((e) => roadmapAcc(e, items, true)));
+  if (nextIdeas.length) r.push('<ul class="flat">' + nextIdeas.map((i) => flatRow(i)).join("") + "</ul>");
+  if (!nextEpics.length && !nextIdeas.length) r.push('<p class="none">(none)</p>');
+  r.push('<h3 class="group">🌅 Later</h3>');
+  const laterEpics = future.filter((e) => epicHorizon(e) !== "next");
+  r.push(...laterEpics.map((e) => roadmapAcc(e, items)));
+  if (laterIdeas.length) r.push('<ul class="flat">' + laterIdeas.map((i) => flatRow(i)).join("") + "</ul>");
+  if (!laterEpics.length && !laterIdeas.length) r.push('<p class="none">(none)</p>');
+  r.push('<h3 class="group">⏸️ Parked</h3>');
+  if (parked.length) r.push(...parked.map((e) => roadmapAcc(e, items, true)));
+  else r.push('<p class="none">(none)</p>');
+  r.push("</section>");
+  out.push(r.join(""));
+
+  const b: string[] = ['<section class="tab" id="braglog" role="tabpanel" ' +
+    'aria-labelledby="tab-braglog" hidden><div class="brag">'];
+  const done = doneForBraglog(items);
+  const monthCounts = new Map<string, number>();
+  for (const x of done) {
+    const m = monthLabel(shipDate(x));
+    monthCounts.set(m, (monthCounts.get(m) ?? 0) + 1);
+  }
+  let current: string | null = null;
+  let lastEid: string | null = null;
+  let openUl = false;
+  done.forEach((x, i) => {
+    const label = monthLabel(shipDate(x));
+    if (label !== current) {
+      if (openUl) b.push("</ul>");
+      current = label;
+      lastEid = null;
+      b.push(`<h3>${h(label)}<span class="count">` +
+        `${monthCounts.get(label)} shipped</span></h3><ul>`);
+      openUl = true;
+    }
+    const tick = i === 0 ? '<span class="tick"></span>' : "";
+    if (x.type === "epic") {
+      const ea = epicAccent(x.id);
+      lastEid = null;
+      b.push(`<li class="epic-done" style="--ea:${ea}">` +
+        `<span class="d">${h(shipDate(x))}</span>` +
+        `<div class="c"><span class="t">🏆 ${h(x.title)}</span>` +
+        `${tick}</div></li>`);
+    } else {
+      const epic = itemEpic(x, items);
+      const ea = epic ? epicAccent(epic.id) : "var(--line)";
+      let ep = "";
+      if (epic && epic.id !== lastEid) {
+        ep = `<span class="ep-name" title="${h(epic.title)}">` +
+          `${h(epic.id)} ${h(epic.title)}</span>`;
+      }
+      if (epic) lastEid = epic.id;
+      b.push(`<li style="--ea:${ea}">` +
+        `<span class="d">${h(shipDate(x))}</span>` +
+        `<div class="c"><span class="t">${h(x.title)}</span>` +
+        `${tick}${ep}</div></li>`);
+    }
+  });
+  if (openUl) b.push("</ul>");
+  if (!done.length) b.push('<p class="none">(nothing shipped yet)</p>');
+  b.push("</div></section>");
+  out.push(b.join(""));
+
+  out.push("<footer>GENERATED by build-views.mts — do not edit. " +
+    "Source of truth: the item files in epics/ and inbox/.</footer>");
+
+  return '<!doctype html>\n<html lang="en"><head><meta charset="utf-8">' +
+    '<meta name="viewport" content="width=device-width, initial-scale=1">' +
+    `<title>${name ? h(name) + " " : ""}Portfolio</title>` +
+    `<style>${HTML_CSS}</style></head>` +
+    `<body><div class="wrap">${out.join("")}</div>${HTML_SCRIPT}</body></html>\n`;
+}

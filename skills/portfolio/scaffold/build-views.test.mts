@@ -373,6 +373,81 @@ test("braglog uses completed override", (t) => {
   assert.ok(brag.includes("## July 2026"));
 });
 
+test("html has three tabs", (t) => {
+  const { items } = setup(t);
+  const htm = bv.renderHtml(items, "2026-07-10");
+  assert.ok(htm.includes('id="board"'));
+  assert.ok(htm.includes('id="roadmap"'));
+  assert.ok(htm.includes('id="braglog"'));
+  assert.ok(htm.includes('data-tab="board"'));
+});
+
+test("html board has lanes and roadmap details", (t) => {
+  const { items } = setup(t);
+  const htm = bv.renderHtml(items, "2026-07-10");
+  assert.ok(htm.includes("Ready for Dev"));
+  assert.ok(htm.includes("<details"));
+});
+
+test("html board has epic rail", (t) => {
+  const { items } = setup(t);
+  const htm = bv.renderHtml(items, "2026-07-10");
+  assert.ok(htm.includes('class="rail"'));
+  assert.ok(htm.includes('data-epic-nav="all"'));
+  assert.ok(htm.includes('data-epic-nav="E01"'));
+  assert.ok(htm.includes('data-epic="E01"'));
+  assert.ok(htm.includes('data-epic="all"'));
+});
+
+test("html rail hides epic with no open work", (t) => {
+  const { items } = setup(t);
+  items.get("S01")!.status = "done";
+  const htm = bv.renderHtml(items, "2026-07-10");
+  assert.ok(!htm.includes('data-epic-nav="E01"'));
+  assert.ok(!htm.includes('data-epic="E01"'));
+  assert.ok(htm.includes('data-epic-nav="all"'));
+});
+
+test("html self contained", (t) => {
+  const { items } = setup(t);
+  const htm = bv.renderHtml(items, "2026-07-10");
+  assert.ok(!htm.includes("http://"));
+  assert.ok(!htm.includes("https://"));
+  assert.ok(!htm.includes("<link"));
+});
+
+test("html contains both views", (t) => {
+  const { items } = setup(t);
+  const html = bv.renderHtml(items, "2026-01-05");
+  for (const token of ["Roadmap", "Board", "E01", "Alpha", "I01",
+    "Loose idea", "after S02", "2026-01-05"]) {
+    assert.ok(html.includes(token), token);
+  }
+});
+
+test("html escapes titles", (t) => {
+  const { items } = setup(t);
+  items.get("S01")!.title = "Evil <script>alert(1)</script> & co";
+  const html = bv.renderHtml(items, "2026-01-05");
+  assert.ok(!html.includes("<script>alert"));
+  assert.ok(html.includes("&lt;script&gt;"));
+  assert.ok(html.includes("&amp; co"));
+});
+
+test("html idempotent", (t) => {
+  const { items } = setup(t);
+  assert.equal(bv.renderHtml(items, "2026-01-05"), bv.renderHtml(items, "2026-01-05"));
+});
+
+test("html brief link relative to portfolio dir", (t) => {
+  const { items } = setup(t);
+  items.get("E01")!.status = "future";
+  items.get("E01")!.brief = "portfolio/epics/2026-01-01-alpha/brief.html";
+  const html = bv.renderHtml(items, "2026-01-05");
+  assert.ok(html.includes('href="epics/2026-01-01-alpha/brief.html"'));
+  assert.ok(!html.includes('href="portfolio/epics'));
+});
+
 test("templates have no inline frontmatter comments", () => {
   const tdir = join(import.meta.dirname, "templates");
   for (const name of readdirSync(tdir).filter((n) => n.endsWith(".md")).sort()) {
