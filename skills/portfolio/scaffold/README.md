@@ -84,6 +84,9 @@ Ideas: future → promoted (kept, points at the successor) or dropped.
 
 ## Creating an item
 
+Commands below are shown as run from inside `portfolio/`; from the repo root,
+prefix the path (e.g. `node portfolio/jot.mts …`).
+
 1. Find the next id:
 
    ```bash
@@ -166,6 +169,14 @@ hook regenerates the generated views (BOARD.md, ROADMAP.md, BRAGLOG.md,
 portfolio.html) automatically on any portfolio edit, and the
 `portfolio-review` agent periodically sweeps for staleness (stale `updated`
 dates, orphaned links, ideas that should be promoted or dropped).
+
+## Upgrading from the shell version
+
+If you scaffolded with the old shell/Python version, copy the new
+`build-views.mts` and `jot.mts` into your `portfolio/` and delete `jot.sh`,
+`build-views.sh`, `build_views.py` (and `test_build_views.py` if present).
+The plugin's auto-regen hook looks for `portfolio/build-views.mts` and
+silently does nothing while only the old files exist.
 
 ## Relationship to Superpowers
 
