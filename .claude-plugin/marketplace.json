@@ -1,0 +1,14 @@
+{
+  "name": "portfolio-marketplace",
+  "owner": {
+    "name": "Tomas Edwardsson",
+    "email": "tommi@gangverk.is"
+  },
+  "plugins": [
+    {
+      "name": "portfolio",
+      "source": "./",
+      "description": "Markdown product-portfolio tracker (Epic → Story → Task + idea inbox) with generated Board / Roadmap / Braglog views."
+    }
+  ]
+}

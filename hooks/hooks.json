@@ -1,0 +1,17 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "P=$(jq -r '.tool_input.file_path // empty'); case \"$P\" in */portfolio/*.md) B=$(basename \"$P\"); if [ \"$B\" != \"BOARD.md\" ] && [ \"$B\" != \"ROADMAP.md\" ] && [ \"$B\" != \"BRAGLOG.md\" ]; then R=\"${P%%/portfolio/*}/portfolio\"; [ -x \"$R/build-views.sh\" ] && \"$R/build-views.sh\" >/dev/null 2>&1 || true; fi ;; esac",
+            "timeout": 15,
+            "statusMessage": "Regenerating portfolio views..."
+          }
+        ]
+      }
+    ]
+  }
+}
