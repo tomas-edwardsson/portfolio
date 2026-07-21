@@ -1,6 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync as wfs } from "node:fs";
+import {
+  mkdtempSync, mkdirSync, rmSync, writeFileSync as wfs, readFileSync, readdirSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import type { TestContext } from "node:test";
@@ -160,4 +162,226 @@ test("parked status is valid", (t) => {
   items.get("E01")!.status = "parked";
   const warns = bv.validate(items);
   assert.deepEqual(warns.filter((w) => w.includes("status") && w.includes("E01")), []);
+});
+
+test("idea appears in later", (t) => {
+  const { items } = setup(t);
+  const roadmap = bv.renderRoadmap(items, "2026-01-05");
+  assert.ok(roadmap.includes("[I01] Loose idea"), roadmap);
+  assert.ok(roadmap.includes("One-liner about the idea."));
+});
+
+test("next horizon idea appears in next", (t) => {
+  const { items } = setup(t);
+  const roadmap = bv.renderRoadmap(items, "2026-01-05");
+  const nxt = idx(roadmap, "## ⏭️ Next");
+  const later = idx(roadmap, "## 🌅 Later");
+  assert.ok(roadmap.includes("[I03] Raised idea 💡 — Raised idea summary."));
+  const i = idx(roadmap, "[I03] Raised idea");
+  assert.ok(nxt < i && i < later);
+  assert.ok(!roadmap.slice(later).includes("[I03]"));
+  assert.ok(later < idx(roadmap, "[I01] Loose idea"));
+});
+
+test("promoted idea hidden", (t) => {
+  const { items } = setup(t);
+  const roadmap = bv.renderRoadmap(items, "2026-01-05");
+  assert.ok(!roadmap.includes("I02"));
+});
+
+test("ships after rendered for pending blocker", (t) => {
+  const { items } = setup(t);
+  const roadmap = bv.renderRoadmap(items, "2026-01-05");
+  const board = bv.renderBoard(items, "2026-01-05");
+  assert.ok(roadmap.includes("after S02"));
+  assert.ok(board.includes("after S02"));
+});
+
+test("ships after dropped when blocker done", (t) => {
+  const { items } = setup(t);
+  items.get("S02")!.status = "done";
+  const roadmap = bv.renderRoadmap(items, "2026-01-05");
+  assert.ok(!roadmap.includes("after S02"));
+});
+
+test("now next later sections", (t) => {
+  const { items } = setup(t);
+  const roadmap = bv.renderRoadmap(items, "2026-01-05");
+  assert.ok(!roadmap.includes("## 🎯 Now"));
+  assert.ok(!roadmap.includes("[E01] Alpha"));
+  const nxt = idx(roadmap, "## ⏭️ Next");
+  const later = idx(roadmap, "## 🌅 Later");
+  const beta = idx(roadmap, "[E02] Beta");
+  assert.ok(nxt < beta && beta < later);
+  assert.ok(roadmap.includes("Beta epic summary line that continues over two lines."));
+  const foundation = idx(roadmap, "[S02] Foundation");
+  assert.ok(nxt < foundation && foundation < later);
+  const dependentIdx = idx(roadmap, "[S03] Dependent");
+  assert.ok(nxt < dependentIdx && dependentIdx < later);
+  assert.ok(roadmap.slice(dependentIdx, later).includes("after S02"));
+});
+
+test("render idempotent", (t) => {
+  const { items } = setup(t);
+  const a = bv.renderRoadmap(items, "2026-01-05");
+  const b = bv.renderRoadmap(items, "2026-01-05");
+  assert.equal(a, b);
+  assert.equal(bv.renderBoard(items, "2026-01-05"), bv.renderBoard(items, "2026-01-05"));
+});
+
+test("board keeps status sections", (t) => {
+  const { items } = setup(t);
+  const board = bv.renderBoard(items, "2026-01-05");
+  for (const heading of ["## ⛔ Blocked", "## 🎬 Ready for Dev", "## 🏃 Active", "## 🏆 Shipped"]) {
+    assert.ok(board.includes(heading), heading);
+  }
+  assert.ok(board.includes("[S01] First story — E01 Alpha"));
+});
+
+test("loads updated completed story fields", (t) => {
+  const { items } = setup(t);
+  const s01 = items.get("S01")!;
+  assert.ok("updated" in s01);
+  assert.ok("completed" in s01);
+  assert.ok("story" in s01);
+});
+
+test("ship date prefers completed", () => {
+  assert.equal(bv.shipDate({ completed: "2026-02-01", updated: "2026-01-01" }), "2026-02-01");
+  assert.equal(bv.shipDate({ completed: "", updated: "2026-01-01" }), "2026-01-01");
+});
+
+test("is parked cascades from epic", (t) => {
+  const { items } = setup(t);
+  items.get("E02")!.status = "parked";
+  assert.ok(bv.isParked(items.get("S02")!, items));
+  assert.ok(!bv.isParked(items.get("S01")!, items));
+});
+
+test("within days", () => {
+  assert.ok(bv.withinDays("2026-01-20", "2026-02-01", 30));
+  assert.ok(!bv.withinDays("2025-12-01", "2026-02-01", 30));
+  assert.ok(!bv.withinDays("", "2026-02-01", 30));
+});
+
+test("active epic non-now horizon no warning", (t) => {
+  const { items } = setup(t);
+  items.get("E01")!.horizon = "next";
+  const warns = bv.validate(items);
+  assert.ok(!warns.some((w) => w.includes("expected now")));
+});
+
+test("board lane assignment", (t) => {
+  const { items } = setup(t);
+  assert.equal(bv.boardLane(items.get("S01")!, items), "active");
+  assert.equal(bv.boardLane(items.get("S02")!, items), "ready");
+  assert.equal(bv.boardLane(items.get("S03")!, items), "blocked");
+});
+
+test("board done story not a card", (t) => {
+  const { items } = setup(t);
+  items.get("S02")!.status = "done";
+  assert.equal(bv.boardLane(items.get("S02")!, items), null);
+});
+
+test("board parked story excluded", (t) => {
+  const { items } = setup(t);
+  items.get("E02")!.status = "parked";
+  assert.equal(bv.boardLane(items.get("S02")!, items), null);
+  assert.equal(bv.boardLane(items.get("S03")!, items), null);
+});
+
+test("board shipped lane recent done epic", (t) => {
+  const { items } = setup(t);
+  items.get("E02")!.status = "done";
+  items.get("E02")!.updated = "2026-06-20";
+  const board = bv.renderBoard(items, "2026-07-01");
+  const shipped = idx(board, "🏆 Shipped");
+  assert.ok(board.slice(shipped).includes("[E02]"));
+});
+
+test("board shipped excludes old done epic", (t) => {
+  const { items } = setup(t);
+  items.get("E02")!.status = "done";
+  items.get("E02")!.updated = "2026-01-01";
+  const board = bv.renderBoard(items, "2026-07-01");
+  const shipped = idx(board, "🏆 Shipped");
+  assert.ok(!board.slice(shipped).includes("[E02]"));
+});
+
+test("roadmap excludes active epic", (t) => {
+  const { items } = setup(t);
+  const roadmap = bv.renderRoadmap(items, "2026-07-01");
+  assert.ok(!roadmap.includes("[E01]"));
+  assert.ok(!roadmap.includes("## 🎯 Now"));
+});
+
+test("roadmap future epic in next", (t) => {
+  const { items } = setup(t);
+  const roadmap = bv.renderRoadmap(items, "2026-07-01");
+  assert.ok(roadmap.includes("[E02]"));
+  const nxt = idx(roadmap, "## ⏭️ Next");
+  const later = idx(roadmap, "## 🌅 Later");
+  assert.ok(roadmap.slice(nxt, later).includes("[E02]"));
+});
+
+test("roadmap uses details accordion", (t) => {
+  const { items } = setup(t);
+  const roadmap = bv.renderRoadmap(items, "2026-07-01");
+  assert.ok(roadmap.includes("<details>"));
+  assert.ok(roadmap.includes("<summary>"));
+});
+
+test("roadmap parked section", (t) => {
+  const { items } = setup(t);
+  items.get("E02")!.status = "parked";
+  const roadmap = bv.renderRoadmap(items, "2026-07-01");
+  const parked = idx(roadmap, "## ⏸️ Parked");
+  assert.ok(roadmap.slice(parked).includes("[E02]"));
+  assert.ok(!roadmap.slice(0, parked).includes("[E02]"));
+});
+
+test("braglog groups and orders", (t) => {
+  const { items } = setup(t);
+  items.get("S01")!.status = "done";
+  items.get("S01")!.updated = "2026-06-15";
+  items.get("S02")!.status = "done";
+  items.get("S02")!.updated = "2026-07-02";
+  const brag = bv.renderBraglog(items, "2026-07-10");
+  assert.ok(brag.includes("## July 2026"));
+  assert.ok(brag.includes("## June 2026"));
+  assert.ok(idx(brag, "## July 2026") < idx(brag, "## June 2026"));
+  assert.ok(brag.includes("[S01]"));
+  assert.ok(brag.includes("[S02]"));
+});
+
+test("braglog excludes dropped and open", (t) => {
+  const { items } = setup(t);
+  items.get("S01")!.status = "dropped";
+  const brag = bv.renderBraglog(items, "2026-07-10");
+  assert.ok(!brag.includes("[S01]"));
+  assert.ok(!brag.includes("[S03]"));
+});
+
+test("braglog uses completed override", (t) => {
+  const { items } = setup(t);
+  items.get("S01")!.status = "done";
+  items.get("S01")!.updated = "2026-01-01";
+  items.get("S01")!.completed = "2026-07-05";
+  const brag = bv.renderBraglog(items, "2026-07-10");
+  assert.ok(brag.includes("2026-07-05"));
+  assert.ok(brag.includes("## July 2026"));
+});
+
+test("templates have no inline frontmatter comments", () => {
+  const tdir = join(import.meta.dirname, "templates");
+  for (const name of readdirSync(tdir).filter((n) => n.endsWith(".md")).sort()) {
+    const lines = readFileSync(join(tdir, name), "utf8").split(/\r?\n/);
+    assert.equal(lines[0].trim(), "---", name);
+    for (const line of lines.slice(1)) {
+      if (line.trim() === "---") break;
+      if (!line.trim() || line.trimStart().startsWith("#")) continue;
+      assert.ok(!line.includes("#"), `${name}: inline comment on value line: ${line}`);
+    }
+  }
 });

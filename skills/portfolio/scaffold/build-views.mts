@@ -152,3 +152,203 @@ export function validate(items: Items): string[] {
   }
   return warnings;
 }
+
+export function pendingBlockers(item: Item, items: Items): string[] {
+  return item.blockedBy.filter((d) => items.has(d) && !DONE_STATES.has(items.get(d)!.status));
+}
+
+export function itemEpic(item: Item, items: Items): Item | undefined {
+  return item.epic ? items.get(item.epic) : undefined;
+}
+
+export function isParked(item: Item, items: Items): boolean {
+  if (item.status === "parked") return true;
+  const e = itemEpic(item, items);
+  return !!e && e.status === "parked";
+}
+
+export function shipDate(item: { completed: string; updated: string }): string {
+  return item.completed || item.updated || "";
+}
+
+function isoUtcMs(s: string): number | null {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
+  if (!m) return null;
+  const ms = Date.UTC(+m[1], +m[2] - 1, +m[3]);
+  const d = new Date(ms);
+  if (d.getUTCMonth() !== +m[2] - 1 || d.getUTCDate() !== +m[3]) return null; // e.g. 2026-02-31
+  return ms;
+}
+
+export function withinDays(dateStr: string, todayStr: string, days: number): boolean {
+  const d = isoUtcMs(dateStr);
+  const t = isoUtcMs(todayStr);
+  if (d === null || t === null) return false;
+  const diff = Math.round((t - d) / 86400000);
+  return diff >= 0 && diff <= days;
+}
+
+export function epicHorizon(item: Item): string {
+  if (item.horizon) return item.horizon;
+  return item.status === "active" ? "now" : "later";
+}
+
+const byId = (a: Item, b: Item): number => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+
+function marks(item: Item): string {
+  let m = "";
+  if (item.brief) m += " 📄";
+  if (item.artifact) m += " 🔗";
+  return m;
+}
+
+function blockedSuffix(item: Item, items: Items): string {
+  const pend = pendingBlockers(item, items);
+  return pend.length ? " ⛔ after " + pend.join(", ") : "";
+}
+
+function shipsAfterLine(item: Item, items: Items): string {
+  const pend = pendingBlockers(item, items);
+  if (!pend.length) return "";
+  const parts = pend.map((d) => `${d} (${items.get(d)!.title})`);
+  return "  - _ships after: " + parts.join(", ") + "_";
+}
+
+function storiesOf(epicId: string, items: Items): Item[] {
+  return [...items.values()].filter((x) => x.type === "story" && x.epic === epicId).sort(byId);
+}
+
+function epicsOf(items: Items): Item[] {
+  return [...items.values()].filter((x) => x.type === "epic").sort(byId);
+}
+
+export function boardLane(item: Item, items: Items): string | null {
+  if (isParked(item, items) || item.status === "dropped" || item.status === "done") return null;
+  if (item.status === "blocked" || pendingBlockers(item, items).length) return "blocked";
+  if (item.status === "active") return "active";
+  if (item.status === "future") return "ready";
+  return null;
+}
+
+const BOARD_LANES: [string, string][] =
+  [["blocked", "⛔ Blocked"], ["ready", "🎬 Ready for Dev"], ["active", "🏃 Active"]];
+// The per-epic board pane shows these three status columns (no Shipped —
+// done work lives in the Braglog).
+const EPIC_LANES: [string, string][] =
+  [["ready", "Ready for Dev"], ["active", "Active"], ["blocked", "Blocked"]];
+
+export function renderBoard(items: Items, today: string): string {
+  const out: string[] = [GENERATED, "# Portfolio Board", "", `_Last generated: ${today}_`, ""];
+  const cards = [...items.values()]
+    .filter((x) => x.type === "story" || x.type === "task").sort(byId);
+  for (const [lane, heading] of BOARD_LANES) {
+    out.push(`## ${heading}`, "");
+    const rows = cards.filter((c) => boardLane(c, items) === lane);
+    for (const c of rows) {
+      const epic = itemEpic(c, items);
+      const tag = epic ? ` — ${epic.id} ${epic.title}` : "";
+      out.push(`- [${c.id}] ${c.title}${tag}${marks(c)}${blockedSuffix(c, items)}`);
+    }
+    if (!rows.length) out.push("_(none)_");
+    out.push("");
+  }
+  out.push("## 🏆 Shipped (last 30 days)", "");
+  const shipped = epicsOf(items)
+    .filter((e) => e.status === "done" && withinDays(shipDate(e), today, 30));
+  shipped.sort((a, b) => (shipDate(a) > shipDate(b) ? -1 : shipDate(a) < shipDate(b) ? 1 : 0));
+  for (const e of shipped) out.push(`- [${e.id}] ${e.title} — ${shipDate(e)}${marks(e)}`);
+  if (!shipped.length) out.push("_(none)_");
+  out.push("");
+  return out.join("\n") + "\n";
+}
+
+function roadmapEpicMd(e: Item, items: Items, withSummary = false): string[] {
+  const openStories = storiesOf(e.id, items).filter((s) => !DONE_STATES.has(s.status));
+  const count = `${openStories.length} stor${openStories.length === 1 ? "y" : "ies"}`;
+  const lines = ["<details>",
+    `<summary>[${e.id}] ${e.title}${marks(e)} — ${count}${blockedSuffix(e, items)}</summary>`, ""];
+  if (withSummary && e.summary) lines.push(e.summary);
+  for (const s of openStories) {
+    lines.push(`- [${s.id}] ${s.title} — \`${s.status}\`${marks(s)}${blockedSuffix(s, items)}`);
+    const after = shipsAfterLine(s, items);
+    if (after) lines.push(after);
+  }
+  lines.push("</details>", "");
+  return lines;
+}
+
+export function renderRoadmap(items: Items, today: string): string {
+  const out: string[] = [GENERATED, "# Roadmap", "", `_Last generated: ${today}_`, ""];
+  const future = epicsOf(items).filter((e) => e.status === "future");
+  const parked = epicsOf(items).filter((e) => e.status === "parked");
+  const ideas = [...items.values()]
+    .filter((x) => x.type === "idea" && x.status === "future").sort(byId);
+  const nextIdeas = ideas.filter((i) => i.horizon === "next");
+  const laterIdeas = ideas.filter((i) => i.horizon !== "next");
+
+  out.push("## ⏭️ Next", "");
+  const nextEpics = future.filter((e) => epicHorizon(e) === "next");
+  for (const e of nextEpics) out.push(...roadmapEpicMd(e, items, true));
+  for (const i of nextIdeas) {
+    out.push(`- [${i.id}] ${i.title} 💡${i.summary ? ` — ${i.summary}` : ""}`);
+  }
+  if (!nextEpics.length && !nextIdeas.length) out.push("_(none)_");
+  out.push("");
+
+  out.push("## 🌅 Later", "");
+  const laterEpics = future.filter((e) => epicHorizon(e) !== "next");
+  for (const e of laterEpics) out.push(...roadmapEpicMd(e, items));
+  for (const i of laterIdeas) {
+    out.push(`- [${i.id}] ${i.title} 💡${i.summary ? ` — ${i.summary}` : ""}`);
+  }
+  if (!laterEpics.length && !laterIdeas.length) out.push("_(none)_");
+  out.push("");
+
+  out.push("## ⏸️ Parked", "");
+  for (const e of parked) out.push(...roadmapEpicMd(e, items, true));
+  if (!parked.length) out.push("_(none)_");
+  out.push("");
+  return out.join("\n") + "\n";
+}
+
+const MONTHS = ["January", "February", "March", "April", "May", "June", "July",
+  "August", "September", "October", "November", "December"];
+
+export function monthLabel(dateStr: string): string {
+  const ms = isoUtcMs(dateStr);
+  if (ms === null) return "Undated";
+  const d = new Date(ms);
+  return `${MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
+}
+
+function doneForBraglog(items: Items): Item[] {
+  const done = [...items.values()]
+    .filter((x) => x.status === "done" && (x.type === "epic" || x.type === "story"));
+  done.sort((a, b) => {
+    const sa = shipDate(a), sb = shipDate(b);
+    if (sa !== sb) return sa < sb ? 1 : -1;
+    return a.id < b.id ? 1 : a.id > b.id ? -1 : 0;
+  });
+  return done;
+}
+
+export function renderBraglog(items: Items, today: string): string {
+  const out: string[] = [GENERATED, "# Braglog", "", `_Last generated: ${today}_`, "",
+    "_What's shipped, newest first._", ""];
+  const done = doneForBraglog(items);
+  let current: string | null = null;
+  for (const x of done) {
+    const label = monthLabel(shipDate(x));
+    if (label !== current) {
+      current = label;
+      out.push("", `## ${label}`, "");
+    }
+    const epic = itemEpic(x, items);
+    const tag = epic ? ` — ${epic.id} ${epic.title}` : "";
+    const kind = x.type === "epic" ? "🏆" : "•";
+    out.push(`- ${shipDate(x)} ${kind} [${x.id}] ${x.title}${tag}`);
+  }
+  if (!done.length) out.push("_(nothing shipped yet)_");
+  out.push("");
+  return out.join("\n") + "\n";
+}
