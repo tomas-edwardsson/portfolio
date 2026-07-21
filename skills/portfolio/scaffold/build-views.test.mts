@@ -2,7 +2,9 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   mkdtempSync, mkdirSync, rmSync, writeFileSync as wfs, readFileSync, readdirSync,
+  existsSync,
 } from "node:fs";
+import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import type { TestContext } from "node:test";
@@ -459,4 +461,35 @@ test("templates have no inline frontmatter comments", () => {
       assert.ok(!line.includes("#"), `${name}: inline comment on value line: ${line}`);
     }
   }
+});
+
+test("cli writes all four views with --root", (t) => {
+  const tmp = mkdtempSync(join(tmpdir(), "pf-cli-"));
+  t.after(() => rmSync(tmp, { recursive: true, force: true }));
+  fixture(tmp);
+  wfs(join(tmp, ".title"), "TestProduct\n", "utf8");
+  const script = join(import.meta.dirname, "build-views.mts");
+  const res = spawnSync(process.execPath, [script, "--root", tmp], { encoding: "utf8" });
+  assert.equal(res.status, 0, res.stderr);
+  assert.ok(res.stdout.startsWith("Wrote "), res.stdout);
+  for (const f of ["BOARD.md", "ROADMAP.md", "BRAGLOG.md", "portfolio.html"]) {
+    assert.ok(existsSync(join(tmp, f)), f);
+  }
+  const board = readFileSync(join(tmp, "BOARD.md"), "utf8");
+  assert.ok(board.startsWith(bv.GENERATED));
+  const html = readFileSync(join(tmp, "portfolio.html"), "utf8");
+  assert.ok(html.includes("TestProduct"));
+});
+
+test("importing the module as a side effect runs nothing", () => {
+  // Guard regression: if importing ran main(), it would print "Wrote …"
+  // and write BOARD.md next to the script.
+  const script = join(import.meta.dirname, "build-views.mts");
+  const res = spawnSync(process.execPath, ["-e",
+    'const{pathToFileURL}=require("node:url");' +
+    'import(pathToFileURL(process.argv[1]).href).catch(e=>{console.error(e);process.exit(1)});',
+    script], { encoding: "utf8" });
+  assert.equal(res.status, 0, res.stderr);
+  assert.equal(res.stdout, "");
+  assert.ok(!existsSync(join(import.meta.dirname, "BOARD.md")));
 });

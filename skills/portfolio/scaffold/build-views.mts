@@ -5,7 +5,7 @@
 // Warnings go to stderr; exit code is 0 unless the portfolio directory
 // itself is missing. node: stdlib only — port of build_views.py.
 
-import { readFileSync, writeFileSync, readdirSync, existsSync, realpathSync } from "node:fs";
+import { readFileSync, writeFileSync, readdirSync, existsSync } from "node:fs";
 import { join, resolve } from "node:path";
 import process from "node:process";
 
@@ -777,4 +777,37 @@ export function renderHtml(items: Items, today: string, name = ""): string {
     `<title>${name ? h(name) + " " : ""}Portfolio</title>` +
     `<style>${HTML_CSS}</style></head>` +
     `<body><div class="wrap">${out.join("")}</div>${HTML_SCRIPT}</body></html>\n`;
+}
+
+function todayISO(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-` +
+    `${String(d.getDate()).padStart(2, "0")}`;
+}
+
+export function main(argv: string[] = process.argv.slice(2)): void {
+  let root = import.meta.dirname;
+  const i = argv.indexOf("--root");
+  if (i >= 0) {
+    if (!argv[i + 1]) {
+      console.error("usage: node build-views.mts [--root DIR]");
+      process.exit(2);
+    }
+    root = resolve(argv[i + 1]);
+  }
+  const [items, warnings] = loadItems(root);
+  warnings.push(...validate(items));
+  const today = todayISO();
+  writeFileSync(join(root, "BOARD.md"), renderBoard(items, today), "utf8");
+  writeFileSync(join(root, "ROADMAP.md"), renderRoadmap(items, today), "utf8");
+  writeFileSync(join(root, "BRAGLOG.md"), renderBraglog(items, today), "utf8");
+  writeFileSync(join(root, "portfolio.html"),
+    renderHtml(items, today, portfolioName(root)), "utf8");
+  for (const w of warnings) console.error(`warning: ${w}`);
+  console.log(`Wrote ${join(root, "BOARD.md")}, ${join(root, "ROADMAP.md")}, ` +
+    `${join(root, "BRAGLOG.md")} and ${join(root, "portfolio.html")}`);
+}
+
+if (import.meta.main) {
+  main();
 }
