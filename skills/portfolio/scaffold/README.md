@@ -5,6 +5,9 @@ infra. Lives in `portfolio/` at the repo root (or one level up, spanning
 multiple repos). Plain files, no service, fully greppable; four read-only
 views are generated from frontmatter.
 
+Requirements: Node.js ≥ 22.18 (the scripts are TypeScript run natively via
+Node's type stripping).
+
 ## Hierarchy
 
 **Epic → Story → Task.**
@@ -23,8 +26,9 @@ portfolio/
   ROADMAP.md                         GENERATED direction view — do not hand-edit
   BRAGLOG.md                         GENERATED shipped history — do not hand-edit
   portfolio.html                     GENERATED styled page (Board/Roadmap/Braglog) — do not hand-edit
-  build-views.sh / build_views.py    regenerates BOARD.md, ROADMAP.md, BRAGLOG.md, portfolio.html
-  jot.sh                             one-command idea capture
+  build-views.mts                    regenerates BOARD.md, ROADMAP.md, BRAGLOG.md, portfolio.html
+  jot.mts                            one-command idea capture
+  build-views.test.mts / jot.test.mts   tests (node --test)
   .title                             optional product name shown in portfolio.html
   templates/                         copy these to create new items
   inbox/
@@ -41,7 +45,7 @@ portfolio/
 - Stories and tasks for an epic are flat files inside that epic's folder.
 - Any `.md` file dropped into an epic folder with no frontmatter block (no
   leading `---`) is treated as reference material (e.g. a `brief` doc) —
-  `build_views.py` ignores it silently.
+  `build-views.mts` ignores it silently.
 
 ## Frontmatter schema
 
@@ -83,7 +87,7 @@ Ideas: future → promoted (kept, points at the successor) or dropped.
 1. Find the next id:
 
    ```bash
-   grep -rho 'id: T[0-9]\+' portfolio | sort -V | tail -1   # highest task id, then +1
+   node jot.mts --next-id T
    ```
 
    (Same for `E` and `S`.)
@@ -100,9 +104,12 @@ grep -rl 'status: blocked'  portfolio/epics      # what's stuck
 grep -rl 'status: future'   portfolio/epics      # the backlog of future work
 ```
 
+(grep examples assume a POSIX shell — Git Bash on Windows works; or use
+`node jot.mts --next-id` for id allocation.)
+
 ## Views
 
-Four views are generated from frontmatter by `./build-views.sh` — never hand-edit any:
+Four views are generated from frontmatter by `node build-views.mts` — never hand-edit any:
 
 - **`BOARD.md`** — the kanban view: story/task cards in lanes (Blocked / Ready to go /
   Active), plus a Shipped-epics section for epics that landed in the last 30 days.
@@ -116,7 +123,7 @@ Four views are generated from frontmatter by `./build-views.sh` — never hand-e
   to brand the header.
 
 ```bash
-cd portfolio && ./build-views.sh
+node portfolio/build-views.mts
 ```
 
 ## Ideas & promotion
@@ -124,7 +131,7 @@ cd portfolio && ./build-views.sh
 Capture a loose idea without planning it out:
 
 ```bash
-./jot.sh "Idea title" ["one-line description"]
+node jot.mts "Idea title" ["one-line description"]
 ```
 
 This creates `inbox/YYYY-MM-DD-<idea-slug>.md` (`type: idea`) and regenerates the views.
@@ -139,16 +146,16 @@ When you're mid-implementation on an epic and a smaller, in-scope task turns up,
 file it as a task under that epic instead of an inbox idea:
 
 ```bash
-./jot.sh --set-epic E##                           # remember "the epic I'm working in"
-./jot.sh --epic "Task title" ["desc"]              # task under the remembered epic
-./jot.sh --epic E## "Task title" ["desc"]          # task under a specific epic
-./jot.sh --epic E## --story S## "Task title"       # task under a story within that epic
-./jot.sh --clear-epic                              # forget the remembered epic
+node jot.mts --set-epic E##                           # remember "the epic I'm working in"
+node jot.mts --epic "Task title" ["desc"]              # task under the remembered epic
+node jot.mts --epic E## "Task title" ["desc"]          # task under a specific epic
+node jot.mts --epic E## --story S## "Task title"       # task under a story within that epic
+node jot.mts --clear-epic                              # forget the remembered epic
 ```
 
 Routing rule: if the discovery is **in scope of the epic you're actively
 implementing**, jot it as a task under that epic. If it's **broader or
-unrelated**, jot it as a plain inbox idea (`./jot.sh "Title"`). Either way, a
+unrelated**, jot it as a plain inbox idea (`node jot.mts "Title"`). Either way, a
 jotted item is a sibling — never fold it into the current item's scope.
 
 ## Claude Code tooling

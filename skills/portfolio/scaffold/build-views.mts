@@ -3,7 +3,7 @@
 //
 // Usage: node build-views.mts [--root DIR]     (Node >= 22.18)
 // Warnings go to stderr; exit code is 0 unless the portfolio directory
-// itself is missing. node: stdlib only — port of build_views.py.
+// itself is missing. node: stdlib only.
 
 import { readFileSync, writeFileSync, readdirSync, existsSync } from "node:fs";
 import { join, resolve } from "node:path";

@@ -55,7 +55,7 @@ hand:
 ```bash
 mkdir -p portfolio && cp -r skills/portfolio/scaffold/. portfolio/
 echo "My Product" > portfolio/.title        # optional: brands portfolio.html
-portfolio/jot.sh "First idea" "one-liner"   # capture an idea, views regenerate
+node portfolio/jot.mts "First idea" "one-liner"   # capture an idea, views regenerate
 open portfolio/portfolio.html
 ```
 
@@ -77,8 +77,8 @@ agent-facing operations in
 ## Development
 
 ```bash
-cd skills/portfolio/scaffold && python3 -m unittest test_build_views -v
-shellcheck skills/portfolio/scaffold/*.sh
+node --test 'skills/portfolio/scaffold/*.test.mts' 'hooks/*.test.mts'
 ```
 
-Python 3 stdlib only; the shell scripts are POSIX-ish bash.
+Requires Node.js ≥ 22.18; scripts are TypeScript run natively via Node's type
+stripping (`.mts`, no build step, no dependencies).

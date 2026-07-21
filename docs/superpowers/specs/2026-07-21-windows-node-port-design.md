@@ -155,3 +155,17 @@ command is the acceptance smoke test on a real Windows machine.
 - No backport to the veeball origin repo (this repo is a standalone
   extraction).
 - No package.json / npm packaging; the scaffold stays copy-paste files.
+
+## Amendments (2026-07-21, during planning)
+
+- File extension is `.mts`, not `.ts`: the scaffold lands in user repos where
+  a `"type": "commonjs"` package.json would make Node parse `.ts` as CJS;
+  `.mts` is unconditionally ESM.
+- hooks.json uses the shell-less `command` + `args` hook form instead of a
+  shell one-liner; the `node -e` trampoline is no longer needed.
+- Run-as-main guard is `if (import.meta.main)` (available v22.18.0/v24.2.0),
+  not the spec's realpath comparison — the realpath form false-positives
+  under `-e` import harnesses.
+- jot.mts prints file paths in messages relative to the portfolio root
+  (forward slashes) and propagates a failed regen's exit code, matching
+  jot.sh's `cd` + `set -e` behavior.

@@ -35,8 +35,13 @@ this skill's directory (dotfiles included), then verify:
 ```bash
 mkdir -p portfolio
 cp -r <this-skill-dir>/scaffold/. portfolio/
-portfolio/build-views.sh
+node portfolio/build-views.mts
 ```
+
+On Windows without Git Bash (PowerShell):
+`New-Item -ItemType Directory -Force portfolio; Copy-Item -Recurse -Force <this-skill-dir>/scaffold/* portfolio/` (PowerShell's `*` includes dot-named files).
+
+Requires Node.js ≥ 22.18 (`node --version`).
 
 Optionally write the product name into `portfolio/.title` (brands the HTML
 view). Suggest the PostToolUse regen hook from the plugin's `hooks/hooks.json`
@@ -46,7 +51,7 @@ if the plugin isn't installed.
 planning:
 
 ```bash
-portfolio/jot.sh "Title" ["description"]
+node portfolio/jot.mts "Title" ["description"]
 ```
 
 **jot (epic-aware)** — mid-implementation, new work turns up. If it's within
@@ -56,20 +61,18 @@ inbox idea (the command above). A jotted task is a **sibling** under the epic,
 not a subtask — never fold it into the current item's scope:
 
 ```bash
-portfolio/jot.sh --set-epic E##                     # once per session
-portfolio/jot.sh --epic "Task title" ["desc"]       # task under the remembered epic
-portfolio/jot.sh --epic E## "Task title" ["desc"]   # task under a specific epic
-portfolio/jot.sh --epic E## --story S## "Task title" # task under a story in that epic
-portfolio/jot.sh --clear-epic                       # forget the remembered epic
+node portfolio/jot.mts --set-epic E##                     # once per session
+node portfolio/jot.mts --epic "Task title" ["desc"]       # task under the remembered epic
+node portfolio/jot.mts --epic E## "Task title" ["desc"]   # task under a specific epic
+node portfolio/jot.mts --epic E## --story S## "Task title" # task under a story in that epic
+node portfolio/jot.mts --clear-epic                       # forget the remembered epic
 ```
 
 **new** — create an epic/story/task:
 
 1. Copy the matching file from `portfolio/templates/` into the epic folder
    (`epics/YYYY-MM-DD-<slug>/`, epics use filename `_epic.md`).
-2. Allocate the next id: `grep -rho 'id: S[0-9]\+' portfolio | sort -V | tail -1`
-   then +1 (same for E/T/I; the templates' `00` placeholders seed each
-   sequence, so this always returns something).
+2. Allocate the next id: `node portfolio/jot.mts --next-id S` (same for E/T/I).
 3. Fill frontmatter: id, title, status, created/updated (today), parent
    `epic:`/`story:` links, `horizon:` for epics (now/next/later).
 
@@ -101,7 +104,7 @@ to the dependent item. An item is _ready_ when all its blockers are done.
 tabs):
 
 ```bash
-portfolio/build-views.sh
+node portfolio/build-views.mts
 ```
 
 (The plugin's PostToolUse hook also runs this automatically after Edit/Write

@@ -17,12 +17,12 @@ empty ones:
    but which are still `future`/`blocked`.
 3. **Drift** — epics where status and horizon disagree (`active` but not
    `now`; `done` but still `now`/`next`), stories `active` under a `future`
-   epic, and any generator warnings (run `portfolio/build-views.sh` and
+   epic, and any generator warnings (run `node portfolio/build-views.mts` and
    capture stderr).
 4. **Inbox aging** — ideas with `status: future` created more than 30 days
    ago: suggest promote or drop, one line each.
 5. **Suggested next action** — one sentence.
 
-Rules: read-only (regenerating views via build-views.sh is the only allowed
-write). Do not create, edit, or renumber items. Do not propose splitting
+Rules: read-only (regenerating views via `node portfolio/build-views.mts` is
+the only allowed write). Do not create, edit, or renumber items. Do not propose splitting
 items into subtasks. Cite item ids in every finding.
