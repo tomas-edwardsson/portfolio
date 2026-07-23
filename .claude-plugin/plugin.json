@@ -1,7 +1,7 @@
 {
   "name": "portfolio",
   "description": "Markdown product-portfolio tracker (Epic → Story → Task + idea inbox) with generated Board / Roadmap / Braglog views. Pairs with the Superpowers plugin: portfolio tracks the what, Superpowers specs/plans hold the how.",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "author": {
     "name": "Tomas Edwardsson",
     "email": "tommi@gangverk.is"
