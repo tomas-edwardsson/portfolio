@@ -232,10 +232,11 @@ export function boardLane(item: Item, items: Items): string | null {
 
 const BOARD_LANES: [string, string][] =
   [["blocked", "⛔ Blocked"], ["ready", "🎬 Ready for Dev"], ["active", "🏃 Active"]];
-// The per-epic board pane shows these three status columns (no Shipped —
-// done work lives in the Braglog).
+// The per-epic board pane mirrors the All-work lane order; its Shipped lane
+// (added in epicPane) lists the epic's done stories and tasks for all time,
+// since epics are short-lived enough not to need a window.
 const EPIC_LANES: [string, string][] =
-  [["ready", "Ready for Dev"], ["active", "Active"], ["blocked", "Blocked"]];
+  [["blocked", "Blocked"], ["ready", "Ready for Dev"], ["active", "Active"]];
 
 export function renderBoard(items: Items, today: string): string {
   const out: string[] = [GENERATED, "# Portfolio Board", "", `_Last generated: ${today}_`, ""];
@@ -474,10 +475,8 @@ footer{margin-top:64px;border-top:1px solid var(--line);padding-top:16px;
   font-family:var(--disp);font-weight:800;text-transform:uppercase;font-size:18px;
   letter-spacing:.02em;border-bottom:2px solid var(--ea,var(--orange))}
 .epic-pane .epic-sum{margin:6px 0 14px;padding:0;color:var(--dust);font-size:13.5px;max-width:70ch}
-.lanes3{grid-template-columns:repeat(3,1fr)}
-.pane-foot{margin-top:14px;font-family:var(--mono);font-size:12px;color:var(--dust)}
 @media (max-width:720px){.board-wrap{flex-direction:column}
-  .rail{flex:none;width:100%}.lanes3{grid-template-columns:1fr}}
+  .rail{flex:none;width:100%}}
 details.epic-acc{background:var(--floor);border:1px solid var(--line);margin-bottom:10px}
 details.epic-acc summary{cursor:pointer;padding:12px 16px;font-family:var(--disp);
   font-weight:700;text-transform:uppercase;letter-spacing:.04em;font-size:15px;
@@ -589,22 +588,26 @@ function epicPane(e: Item, items: Items, cards: Item[]): string {
     const body = rows ? `<ul>${rows}</ul>` : '<p class="none">(none)</p>';
     lanes.push(`<div class="lane"><h3>${label}</h3>${body}</div>`);
   }
-  const shippedN = mine.filter((c) => c.status === "done").length;
+  const shipped = mine.filter((c) => c.status === "done").sort(byShipDateDesc)
+    .map((c) => shippedCard(c, ea)).join("");
+  lanes.push(`<div class="lane"><h3>Shipped</h3>` +
+    `${shipped ? `<ul>${shipped}</ul>` : '<p class="none">(none)</p>'}</div>`);
   const summ = e.summary ? `<p class="epic-sum">${h(e.summary)}</p>` : "";
-  const foot = shippedN ? `<p class="pane-foot">${shippedN} shipped → Braglog</p>` : "";
   return `<div class="epic-pane" data-epic="${h(e.id)}" hidden ` +
     `style="--ea:${ea}"><div class="pane-head">${chip(e.id)}` +
     `<span class="pt">${h(e.title)}</span></div>${summ}` +
-    `<div class="lanes lanes3">${lanes.join("")}</div>${foot}</div>`;
+    `<div class="lanes">${lanes.join("")}</div></div>`;
 }
 
-function shippedCard(e: Item, hot = false): string {
-  const ea = epicAccent(e.id);
+const byShipDateDesc = (a: Item, b: Item): number =>
+  shipDate(a) > shipDate(b) ? -1 : shipDate(a) < shipDate(b) ? 1 : byId(a, b);
+
+function shippedCard(item: Item, ea: string, hot = false): string {
   const tick = hot ? '<span class="tick"></span>' : "";
   return `<li><div class="card shipped" style="--ea:${ea}">` +
-    `<span class="t">${h(e.title)}</span>${tick}` +
-    `<span class="meta">${chip(e.id)}` +
-    `<span class="d">${h(shipDate(e))}</span></span></div></li>`;
+    `<span class="t">${h(item.title)}</span>${tick}` +
+    `<span class="meta">${chip(item.id)}` +
+    `<span class="d">${h(shipDate(item))}</span></span></div></li>`;
 }
 
 function roadmapAcc(e: Item, items: Items, withSummary = false): string {
@@ -676,8 +679,8 @@ export function renderHtml(items: Items, today: string, name = ""): string {
   }
   const shipped = epicsOf(items)
     .filter((e) => e.status === "done" && withinDays(shipDate(e), today, 30));
-  shipped.sort((a, b) => (shipDate(a) > shipDate(b) ? -1 : shipDate(a) < shipDate(b) ? 1 : 0));
-  const srows = shipped.map((e, i) => shippedCard(e, i === 0)).join("");
+  shipped.sort(byShipDateDesc);
+  const srows = shipped.map((e, i) => shippedCard(e, epicAccent(e.id), i === 0)).join("");
   const sbody = shipped.length ? `<ul>${srows}</ul>` : '<p class="none">(none)</p>';
   allLanes.push(`<div class="lane"><h3>🏆 Shipped · 30d</h3>${sbody}</div>`);
 

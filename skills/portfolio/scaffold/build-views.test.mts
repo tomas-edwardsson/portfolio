@@ -427,6 +427,41 @@ test("html contains both views", (t) => {
   }
 });
 
+function epicPaneHtml(htm: string, epicId: string): string {
+  const start = idx(htm, `data-epic="${epicId}"`);
+  const rest = htm.slice(start + 1);
+  const next = rest.search(/data-epic="|<section /);
+  return next < 0 ? htm.slice(start) : htm.slice(start, start + 1 + next);
+}
+
+test("html epic pane lanes run blocked, ready, active, shipped", (t) => {
+  const { items } = setup(t);
+  const pane = epicPaneHtml(bv.renderHtml(items, "2026-07-10"), "E02");
+  const order = ["<h3>Blocked</h3>", "<h3>Ready for Dev</h3>", "<h3>Active</h3>", "<h3>Shipped</h3>"]
+    .map((lane) => idx(pane, lane));
+  assert.deepEqual([...order].sort((a, b) => a - b), order);
+});
+
+test("html epic pane shipped lane is all time and skips dropped", (t) => {
+  const { root } = setup(t);
+  writeItem(root, "epics/2026-01-01-alpha/2025-01-01-old.md", { id: "S90", type: "story",
+    title: "Ancient shipped story", status: "done", epic: "E01", completed: "2025-01-01" });
+  writeItem(root, "epics/2026-01-01-alpha/2026-06-01-new.md", { id: "S91", type: "story",
+    title: "Fresh shipped story", status: "done", epic: "E01", completed: "2026-07-01" });
+  writeItem(root, "epics/2026-01-01-alpha/2026-06-02-drop.md", { id: "S92", type: "story",
+    title: "Abandoned story", status: "dropped", epic: "E01", updated: "2026-07-02" });
+  const [items, warns] = bv.loadItems(root);
+  assert.deepEqual(warns, []);
+  const pane = epicPaneHtml(bv.renderHtml(items, "2026-07-10"), "E01");
+  const shipped = pane.slice(idx(pane, "<h3>Shipped</h3>"));
+  assert.ok(shipped.includes("Ancient shipped story"), "done story older than 30d is listed");
+  assert.ok(shipped.includes("2025-01-01"), "ship date shown");
+  assert.ok(idx(shipped, "Fresh shipped story") < idx(shipped, "Ancient shipped story"),
+    "newest first");
+  assert.ok(!pane.includes("Abandoned story"));
+  assert.ok(!pane.includes("Braglog"), "footer pointer replaced by the lane");
+});
+
 test("html escapes titles", (t) => {
   const { items } = setup(t);
   items.get("S01")!.title = "Evil <script>alert(1)</script> & co";
