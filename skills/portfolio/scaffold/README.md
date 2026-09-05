@@ -127,6 +127,7 @@ Four views are generated from frontmatter by `node build-views.mts` — never ha
 
 ```bash
 node portfolio/build-views.mts
+node portfolio/build-views.mts --today 2026-09-01   # pin the date (stable output for fixtures)
 ```
 
 ## Ideas & promotion

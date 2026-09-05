@@ -1,7 +1,7 @@
 // Generate BOARD.md, ROADMAP.md, BRAGLOG.md and portfolio.html from
 // portfolio item frontmatter.
 //
-// Usage: node build-views.mts [--root DIR]     (Node >= 22.18)
+// Usage: node build-views.mts [--root DIR] [--today YYYY-MM-DD]   (Node >= 22.18)
 // Warnings go to stderr; exit code is 0 unless the portfolio directory
 // itself is missing. node: stdlib only.
 
@@ -785,19 +785,30 @@ function todayISO(): string {
     `${String(d.getDate()).padStart(2, "0")}`;
 }
 
-export function main(argv: string[] = process.argv.slice(2)): void {
-  let root = import.meta.dirname;
-  const i = argv.indexOf("--root");
-  if (i >= 0) {
-    if (!argv[i + 1]) {
-      console.error("usage: node build-views.mts [--root DIR]");
-      process.exit(2);
-    }
-    root = resolve(argv[i + 1]);
+const USAGE = "usage: node build-views.mts [--root DIR] [--today YYYY-MM-DD]";
+
+function flagValue(argv: string[], flag: string): string | undefined {
+  const i = argv.indexOf(flag);
+  if (i < 0) return undefined;
+  if (!argv[i + 1]) {
+    console.error(USAGE);
+    process.exit(2);
   }
+  return argv[i + 1];
+}
+
+export function main(argv: string[] = process.argv.slice(2)): void {
+  const rootArg = flagValue(argv, "--root");
+  const root = rootArg ? resolve(rootArg) : import.meta.dirname;
+  // --today pins the generated date so committed example output is stable.
+  const todayArg = flagValue(argv, "--today");
+  if (todayArg !== undefined && isoUtcMs(todayArg) === null) {
+    console.error(`${USAGE}\n--today must be a valid YYYY-MM-DD date, got: ${todayArg}`);
+    process.exit(2);
+  }
+  const today = todayArg ?? todayISO();
   const [items, warnings] = loadItems(root);
   warnings.push(...validate(items));
-  const today = todayISO();
   writeFileSync(join(root, "BOARD.md"), renderBoard(items, today), "utf8");
   writeFileSync(join(root, "ROADMAP.md"), renderRoadmap(items, today), "utf8");
   writeFileSync(join(root, "BRAGLOG.md"), renderBraglog(items, today), "utf8");

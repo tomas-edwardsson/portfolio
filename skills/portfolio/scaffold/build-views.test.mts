@@ -498,3 +498,29 @@ test("importing the module as a side effect runs nothing", (t) => {
   assert.equal(res.stdout, "");
   assert.ok(!existsSync(join(tmp, "BOARD.md")));
 });
+
+test("cli --today pins the generated date", (t) => {
+  const tmp = mkdtempSync(join(tmpdir(), "pf-today-"));
+  t.after(() => rmSync(tmp, { recursive: true, force: true }));
+  fixture(tmp);
+  const script = join(import.meta.dirname, "build-views.mts");
+  const res = spawnSync(process.execPath, [script, "--root", tmp, "--today", "2031-04-05"],
+    { encoding: "utf8" });
+  assert.equal(res.status, 0, res.stderr);
+  const board = readFileSync(join(tmp, "BOARD.md"), "utf8");
+  assert.ok(board.includes("_Last generated: 2031-04-05_"), board.slice(0, 200));
+  const html = readFileSync(join(tmp, "portfolio.html"), "utf8");
+  assert.ok(html.includes("2031-04-05"));
+});
+
+test("cli --today rejects a malformed date", (t) => {
+  const tmp = mkdtempSync(join(tmpdir(), "pf-today-bad-"));
+  t.after(() => rmSync(tmp, { recursive: true, force: true }));
+  fixture(tmp);
+  const script = join(import.meta.dirname, "build-views.mts");
+  const res = spawnSync(process.execPath, [script, "--root", tmp, "--today", "yesterday"],
+    { encoding: "utf8" });
+  assert.equal(res.status, 2);
+  assert.ok(res.stderr.includes("--today"), res.stderr);
+  assert.ok(!existsSync(join(tmp, "BOARD.md")));
+});
