@@ -481,15 +481,20 @@ test("cli writes all four views with --root", (t) => {
   assert.ok(html.includes("TestProduct"));
 });
 
-test("importing the module as a side effect runs nothing", () => {
+test("importing the module as a side effect runs nothing", (t) => {
   // Guard regression: if importing ran main(), it would print "Wrote …"
-  // and write BOARD.md next to the script.
-  const script = join(import.meta.dirname, "build-views.mts");
+  // and write BOARD.md next to the script. Import a copy from an empty
+  // temp dir so the check is valid both in the pristine scaffold and in
+  // an initialized portfolio, where BOARD.md legitimately exists.
+  const tmp = mkdtempSync(join(tmpdir(), "pf-import-"));
+  t.after(() => rmSync(tmp, { recursive: true, force: true }));
+  const script = join(tmp, "build-views.mts");
+  wfs(script, readFileSync(join(import.meta.dirname, "build-views.mts")));
   const res = spawnSync(process.execPath, ["-e",
     'const{pathToFileURL}=require("node:url");' +
     'import(pathToFileURL(process.argv[1]).href).catch(e=>{console.error(e);process.exit(1)});',
     script], { encoding: "utf8" });
   assert.equal(res.status, 0, res.stderr);
   assert.equal(res.stdout, "");
-  assert.ok(!existsSync(join(import.meta.dirname, "BOARD.md")));
+  assert.ok(!existsSync(join(tmp, "BOARD.md")));
 });
