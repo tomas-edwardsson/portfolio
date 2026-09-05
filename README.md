@@ -17,6 +17,13 @@ your repo**, committed alongside the code. Multi-repo or worktree-heavy
 setups can instead keep it one level up, as a sibling of the checkouts,
 for a product-level view (app, pipelines, infra) that no single repo gives.
 
+## Example
+
+`example/portfolio/` is a small fictional portfolio with its generated views
+committed, so you can open `example/portfolio/portfolio.html` to see what the
+tracker produces. Its README has the regen command; `example/example.test.mts`
+fails when the committed views drift from the renderer.
+
 ## Pairs with Superpowers
 
 This tracker is designed to sit on top of
